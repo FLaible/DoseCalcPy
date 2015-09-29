@@ -31,6 +31,9 @@ eta = 0.92
 #fig = plt.figure()
 #ax1 = fig.add_axes([0.1, 0.12, 0.8, 0.8])
 
+AbstandX = 10
+AbstandY = 10
+
 A = sciim.imread('C:/Users/Florian Laible/Desktop/Kreis.png')
 A = A[:,:,0]
 
@@ -48,16 +51,16 @@ y0 = np.zeros((ASum,1))
 #ax1.imshow(A)
 #plt.show()
 
-x = np.linspace(-2*A.shape[0], 2*A.shape[0], 50)
-y = np.linspace(-2*A.shape[1], 2*A.shape[1], 50)
+x = np.linspace(-1*A.shape[0], AbstandX*A.shape[0], 100)
+y = np.linspace(-1*A.shape[1], AbstandY*A.shape[1], 100)
 
 xv, yv = np.meshgrid(x, y, sparse=False, indexing='ij')
 m = 0
 for k in range(A.shape[0]):
     for l in range(A.shape[1]):
         if A[k,l] == 1:
-            x0[m] = k
-            y0[m] = l
+            x0[m] = k * AbstandX
+            y0[m] = l * AbstandY
             m += 1
 
 
@@ -114,10 +117,6 @@ while BadCount != 0:
     y0neu = np.delete(y0,Entries2Delete)
     x0 = x0neu
     y0 = y0neu
-
-
-
-
 
 #Erg = sp.linalg.solve_triangular(PS,EinerVek)
 
