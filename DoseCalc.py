@@ -47,6 +47,7 @@ ASum = sum(sum(A))
 
 x0 = np.zeros((ASum,1))
 y0 = np.zeros((ASum,1))
+Erg = np.zeros((ASum,1))
 #print(A)
 #ax1.imshow(A)
 #plt.show()
@@ -105,20 +106,24 @@ while BadCount != 0:
     Test = np.round(Test)
     EinerVek = np.ones(len(x0))
     Erg = nplin.solve(PS,EinerVek)
-    print(Erg)
+    #Erg = sp.linalg.solve_triangular(PS,EinerVek)
+    #Erg = sp.sparse.linalg.spsolve(PS,EinerVek)
+    #Erg = sp.sparse.linalg.minres(PS,EinerVek)
+    print(Erg.shape)
 
-    Entries2Delete = []
-    for m in range(len(x0)):
-        if Erg[m] < 0:
-            Entries2Delete.append(m)
-            BadCount += 1
+    # Entries2Delete = []
+    # for m in range(len(x0)):
+    #     #if Erg[m] < 0:
+    #     if Erg.any(0):
+    #         Entries2Delete.append(m)
+    #         BadCount += 1
+    #
+    # x0neu = np.delete(x0,Entries2Delete)
+    # y0neu = np.delete(y0,Entries2Delete)
+    # x0 = x0neu
+    # y0 = y0neu
 
-    x0neu = np.delete(x0,Entries2Delete)
-    y0neu = np.delete(y0,Entries2Delete)
-    x0 = x0neu
-    y0 = y0neu
 
-#Erg = sp.linalg.solve_triangular(PS,EinerVek)
 
 
 for i in range(len(x0)):
