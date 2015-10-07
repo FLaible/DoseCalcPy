@@ -54,14 +54,8 @@ class DoseCalc(QMainWindow):
         self.ui.setupUi(self)
 
         self.fig = Figure()
-        self.axes = self.fig.add_subplot(2, 2, 2)
+        self.axes = self.fig.add_subplot(1, 1, 1)
         self.axes.hold(False)
-
-        self.fig_erg = Figure()
-        self.axes_erg = self.fig.add_subplot(2, 2, 1, projection='3d')
-        #self.axes_erg.axis('off')
-        self.axes_erg.hold(False)
-
 
         self.Canvas = FigureCanvas(self.fig)
         self.Canvas.setParent(self.ui.plot_widget)
@@ -71,6 +65,22 @@ class DoseCalc(QMainWindow):
 
         l = QVBoxLayout(self.ui.plot_widget)
         l.addWidget(self.Canvas)
+
+
+
+        self.fig_erg = Figure()
+        self.axes_erg = self.fig_erg.add_subplot(1, 1, 1, projection='3d')
+        self.axes_erg.axis('off')
+        self.axes_erg.hold(False)
+
+        self.Canvas_erg = FigureCanvas(self.fig_erg)
+        self.Canvas_erg.setParent(self.ui.erg_widget)
+
+        self.Canvas_erg.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.Canvas_erg.updateGeometry()
+
+        l2 = QVBoxLayout(self.ui.erg_widget)
+        l2.addWidget(self.Canvas_erg)
 
         #plt.subplots_adjust(left=0.125, bottom=0.1, right=0.9, top=0.9, wspace=0.2, hspace=0.5)
         #left  = 0.125  # the left side of the subplots of the figure
@@ -123,9 +133,8 @@ class DoseCalc(QMainWindow):
         y = np.linspace(-1*A.shape[1], 10*A.shape[1], 100)
 
         self.xv, self.yv = np.meshgrid(x, y, sparse=False, indexing='ij')
-        xvv = self.xv
-        yvv = self.yv
         m = 0
+
         for k in range(A.shape[0]):
             for l in range(A.shape[1]):
                 if A[k,l] == 1:
@@ -133,6 +142,7 @@ class DoseCalc(QMainWindow):
                     y0[m] = l * AbstandY
                     m += 1
 
+        Zges = np.zeros((len(self.xv),len(self.yv)))
         zges = np.zeros((len(self.xv),len(self.yv)))
         z = np.zeros((len(x0),len(y0)))
 
@@ -171,6 +181,7 @@ class DoseCalc(QMainWindow):
             PSinv = nplin.inv(PS)
             Test = PS * PSinv
             Test = np.round(Test)
+            print(Test)
             EinerVek = np.ones(len(x0))
             Erg = nplin.solve(PS,EinerVek)
             #Erg = sp.linalg.solve_triangular(PS,EinerVek)
@@ -188,11 +199,10 @@ class DoseCalc(QMainWindow):
             y0 = y0neu
 
         for i in range(len(x0)):
-            print(i)
-            z = rechenknecht2(x0[i],y0[i],xvv,yvv,Delta,alpha,beta,eta,Erg[i])
-            self.zges = zges + z
-
-        print(Test)
+            z = rechenknecht2(x0[i],y0[i],self.xv,self.yv,Delta,alpha,beta,eta,Erg[i])
+            Zges = Zges + z
+        self.zges = Zges
+        print(np.sum(np.diagonal(Test))/len(Test))
         self._plot_erg()
         return None
 
@@ -204,9 +214,8 @@ class DoseCalc(QMainWindow):
 
     @pyqtSlot(np.ndarray)
     def _plot_erg(self):
-        print('Check')
         self.axes_erg.plot_surface(self.xv, self.yv, self.zges, rstride=1, cstride=1, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-        self.Canvas.draw()
+        self.Canvas_erg.draw()
         return True
 
 
