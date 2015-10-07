@@ -16,38 +16,69 @@ import seaborn as sb
 
 
 file_dir = 'C:/Users/Florian Laible/Desktop/'
-ECP_name = 'Kreis'
+ECP_name = 'BT'
 pic_dir = file_dir + ECP_name + '.png'
 AbstandX = 10
 AbstandY = 10
 alpha = 14
 beta = 2180
-Delta = 1
+Delta = 10
 eta = 0.92
 
 
-data = sci.misc.imread(pic_dir)
-data = data[:,:,0]
-for i in range(data.size):
-    if data.item(i)<190:
-        data.itemset(i,1)
-    else:
-        data.itemset(i,0)
-    ASum = sum(sum(data))
+#BT creator:
+#Eingabe:
+Basis = 10                                  #Basis mal AbstandX = Basis in nm
+Hoehe = 25                                 #Hoehe mal AbstandY = Hoehe in nm
+gab = 1                                     #gab mal AbstandY = gab in nm
+#Eingabe Ende
+
+gab = np.zeros((Basis,gab))
+Basish = int(np.ceil(Basis/2))
+BTlu = np.zeros((Basish,Hoehe))          #BT parallel zur x-Achse
+
+for j in range(Hoehe):
+    for i in range(Basish):
+        if i < (-((Basish/(Hoehe)) * j) + (Basish)):
+            BTlu.itemset(i,j,1)
+
+BTlo = np.flipud(BTlu)
+if Basis%2 != 0:
+    BTlo = BTlo[:-1,:]
+else:
+    print('Warnung: Basis gerade -> zwei Punkte an Spitze')
+
+BTl = np.vstack((BTlo,BTlu))
+BTr = np.fliplr(BTl)
+
+BT = np.hstack((BTl,gab,BTr))
+print('Struktur erstellt')
+#plt.imshow(BT)
+#plt.show()
 
 
-A = np.array(data)
+#data = sci.misc.imread(pic_dir)
+#data = data[:,:,0]
+#for i in range(data.size):
+#    if data.item(i)<130:
+#        data.itemset(i,1)
+#    else:
+#        data.itemset(i,0)
+
+
+
+ASum = sum(sum(BT))
+
+A = np.array(BT)
 x0 = np.zeros((ASum,1))
 y0 = np.zeros((ASum,1))
 Erg = np.zeros((ASum,1))
-#print(A)
-#ax1.imshow(A)
-#plt.show()
 
 x = np.linspace(-1*A.shape[0], AbstandX*A.shape[0], 100)
 y = np.linspace(-1*A.shape[1], AbstandY*A.shape[1], 100)
 
 xv, yv = np.meshgrid(x, y, sparse=False, indexing='ij')
+print('Grid erstellt')
 m = 0
 for k in range(A.shape[0]):
     for l in range(A.shape[1]):
@@ -126,14 +157,17 @@ print(Test)
 Outputfile = open(file_dir + 'ECP_txt_files/' + ECP_name + '.txt','w')
 Outputfile.write('D ' + ECP_name + '\n')
 Outputfile.write('C 10000' + '\n')
-for k in range(len(xv)):
+for k in range(len(x0)):
     Outputfile.write(str(x0[k]) + ' ' + str(y0[k]) + ' ' + str(math.ceil(Erg[k])) + '\n')
 Outputfile.write('END')
 
 
 fig = plt.figure()
 ax = fig.gca(projection='3d')
-surf = ax.plot_surface(xv, yv, zges, rstride=1, cstride=1, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+surf = ax.plot_surface(xv, yv, zges, rstride=1, cstride=1, cmap=cm.RdYlBu, linewidth=0, antialiased=False)
+
+
+
 
 
 plt.show()
