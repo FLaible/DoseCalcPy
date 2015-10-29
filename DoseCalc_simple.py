@@ -11,61 +11,41 @@ import math
 
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
+
 import matplotlib.pyplot as plt
 import seaborn as sb
+import QBT_creator
+import time
+
+start = time.time()
 
 
-file_dir = 'C:/Users/Florian Laible/Desktop/'
-ECP_name = 'BT'
-pic_dir = file_dir + ECP_name + '.png'
-AbstandX = 10
-AbstandY = 10
+#Eingabe Beginn:
+file_dir_data = 'C:/Users/Florian Laible/Desktop/'
+file_dir_pics = 'C:/Users/Florian Laible/Desktop/Output_DoseCalc_Pics/'
+
 alpha = 14
 beta = 2180
 Delta = 10
 eta = 0.92
 
+#BT/QBT creator:
+Basis = 155
+Hoehe = int(np.ceil(np.sqrt(3)*Basis/2))
+AbstandX = 5
+AbstandY = 5
+gap = 25
+Quad_BT_y_n = 0
+#Eingape Ende
 
-#BT creator:
-#Eingabe:
-Basis = 10                                  #Basis mal AbstandX = Basis in nm
-Hoehe = 25                                 #Hoehe mal AbstandY = Hoehe in nm
-gab = 1                                     #gab mal AbstandY = gab in nm
-#Eingabe Ende
-
-gab = np.zeros((Basis,gab))
-Basish = int(np.ceil(Basis/2))
-BTlu = np.zeros((Basish,Hoehe))          #BT parallel zur x-Achse
-
-for j in range(Hoehe):
-    for i in range(Basish):
-        if i < (-((Basish/(Hoehe)) * j) + (Basish)):
-            BTlu.itemset(i,j,1)
-
-BTlo = np.flipud(BTlu)
-if Basis%2 != 0:
-    BTlo = BTlo[:-1,:]
+if Quad_BT_y_n == 1:
+    BT = QBT_creator.QBT_c(Basis,Hoehe,AbstandX,AbstandY,gap)
+    ECP_name = 'QBT_' + str(Basis) + '_' + str(Hoehe) + '_' +str(gap) + '_' + str(AbstandX) + '_' + str(AbstandY)
 else:
-    print('Warnung: Basis gerade -> zwei Punkte an Spitze')
+    BT = QBT_creator.BT_c(Basis,Hoehe,AbstandX,AbstandY,gap)
+    ECP_name = 'BT_' + str(Basis) + '_' + str(Hoehe) + '_' +str(gap) + '_' + str(AbstandX) + '_' + str(AbstandY)
 
-BTl = np.vstack((BTlo,BTlu))
-BTr = np.fliplr(BTl)
-
-BT = np.hstack((BTl,gab,BTr))
-print('Struktur erstellt')
-#plt.imshow(BT)
-#plt.show()
-
-
-#data = sci.misc.imread(pic_dir)
-#data = data[:,:,0]
-#for i in range(data.size):
-#    if data.item(i)<130:
-#        data.itemset(i,1)
-#    else:
-#        data.itemset(i,0)
-
-
+pic_dir = file_dir_pics + ECP_name + '.png'
 
 ASum = sum(sum(BT))
 
@@ -86,7 +66,6 @@ for k in range(A.shape[0]):
             x0[m] = k * AbstandX
             y0[m] = l * AbstandY
             m += 1
-
 
 zges = np.zeros((len(xv),len(yv)))
 z = np.zeros((len(x0),len(y0)))
@@ -118,9 +97,9 @@ BadCount = 1
 
 while BadCount != 0:
     BadCount = 0
-    print(len(x0))
     PS = np.zeros((len(x0),len(y0)))
     for k in range(len(x0)):
+        print((k/len(x0)*100))
         for l in range(len(y0)):
             PS[k, l] = rechenknecht(x0[k], y0[k], x0[l], y0[l],Delta,alpha,beta,eta)
 
@@ -132,7 +111,7 @@ while BadCount != 0:
     #Erg = sp.linalg.solve_triangular(PS,EinerVek)
     #Erg = sp.sparse.linalg.spsolve(PS,EinerVek)
     #Erg = sp.sparse.linalg.minres(PS,EinerVek)
-    print(Erg)
+    # print(Erg)
 
     Entries2Delete = []
     for m in range(len(x0)):
@@ -145,29 +124,44 @@ while BadCount != 0:
     x0 = x0neu
     y0 = y0neu
 
-
-
-
 for i in range(len(x0)):
     z = rechenknecht2(x0[i],y0[i],xv,yv,Delta,alpha,beta,eta,Erg[i])
     zges = zges + z
 
-print(Test)
+MinErg = np.min(Erg)
+Erg = Erg / MinErg
 
-Outputfile = open(file_dir + 'ECP_txt_files/' + ECP_name + '.txt','w')
+Outputfile = open(file_dir_data + 'Output_DoseCalc_simple/' + ECP_name + '.txt','w')
 Outputfile.write('D ' + ECP_name + '\n')
 Outputfile.write('C 10000' + '\n')
 for k in range(len(x0)):
-    Outputfile.write(str(x0[k]) + ' ' + str(y0[k]) + ' ' + str(math.ceil(Erg[k])) + '\n')
+    Outputfile.write('RDOT ' + str(int(x0[k])) + ',' + str(int(y0[k])) + ',' + str(math.ceil(Erg[k])) + '\n')
 Outputfile.write('END')
+
+
+# Plot in Circles
+fig = plt.figure()
+ax = fig.add_axes([0.12, 0.12, 0.8, 0.8])
+ax.axis('equal')
+ax.set_xlabel('x [pix]')
+ax.set_ylabel('y [pix]')
+area = np.pi * (20 * Erg/np.max(Erg))**2
+
+plt.scatter(x0, y0, s=area, alpha=0.5)
+
+plt.savefig(file_dir_pics  + ECP_name + '_scatter.png')
 
 
 fig = plt.figure()
 ax = fig.gca(projection='3d')
-surf = ax.plot_surface(xv, yv, zges, rstride=1, cstride=1, cmap=cm.RdYlBu, linewidth=0, antialiased=False)
+ax.view_init(30, 15)
+
+surf = ax.plot_surface(xv, yv, zges, rstride=1, cstride=1, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+ax.set_xlabel('x [pix]')
+ax.set_ylabel('y [pix]')
+ax.set_zlabel('norm. I [a.u.]')
+plt.savefig(file_dir_pics  + ECP_name + '_surf.png')
 
 
-
-
-
-plt.show()
+end = time.time()
+print(end - start)
