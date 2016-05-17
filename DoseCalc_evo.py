@@ -150,7 +150,7 @@ dose_check_radius = 7 # nm
 #outfilename = 'emre2.txt'
 #outfilename = 'asymdimer.txt'
 #outfilename = 'single.txt'
-outfilename = 'pillars_r'+str(radius)+'nm.txt'
+outfilename = 'pillars2_r'+str(radius)+'nm.txt'
 #outfilename = 'test.txt'
 #outfilename = 'lines.txt'
 
@@ -330,10 +330,10 @@ def iterate(x0,y0,repetitions,target):
         population = mutate_population(population,sigma)
         population = check_limits(population)
         if i in logpoints:
-            print(str(i)+ ": " + str(fitness[sorted][0]))
+            print(str(i)+ ": " + str(fitness[sorted_ind][0]))
             #print(sigma)
 
-        convergence[i] = fitness[sorted][0]
+        convergence[i] = fitness[sorted_ind][0]
         t[i] = time.time() - starttime
         #print(str(i)+ ": " + str(fitness[sorted][0]))
 
