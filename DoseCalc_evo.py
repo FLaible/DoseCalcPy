@@ -247,33 +247,23 @@ def calc_fitness(population,proximity):
             exposure = (exposure* 1e6)/(pixel_area*1e-14 ) # uC/cm^2
             fitness[p] += np.abs(300-np.mean(exposure))
             #fitness[j] = calc_err(exposure, target[])
+        fitness[p] = fitness[p]/proximity.shape[1]
     return fitness
 
-@jit(float64[:,:](float64[:,:],int64[:]),nopython=True)
-def recombine_population(population, sorted_ind):
+@jit(float64[:,:](float64[:,:]),nopython=True)
+def recombine_population(population):
     #n_recombination = 6
     #n_recombination = int(population.shape[1]/3)
     n_recombination = int(population.shape[1]/2)
 
-    best_ind = sorted_ind[:n_recombination]
-    worst_ind = sorted_ind[-n_recombination:]
-
-    for i in range(n_recombination/2):
+    for i in range(int(n_recombination/2)):
         k = 2*i
         l = 2*i+1
-        r_rec = recombine_arrays(population[:, best_ind[k]],population[:, best_ind[l]])
-        population[:, worst_ind[k]] = r_rec[:, 0]
-        population[:, worst_ind[l]] = r_rec[:, 1]
+        r_rec = recombine_arrays(population[:, k],population[:, l])
+        population[:, -k] = r_rec[:, 0]
+        population[:, -l] = r_rec[:, 1]
 
-    # population = population[:,sorted_ind]
-    #
-    # for i in range(n_recombination):
-    #     r_rec = recombine_arrays(population[:, i],population[:, i+1])
-    #     population[:, i] = r_rec[:, 0]
-    #     population[:, i+n_recombination] = r_rec[:, 1]
-
-    return population[:,sorted_ind]
-    #return population
+    return population
 
 @jit(float64[:,:](float64[:,:],float64),nopython=True)
 def mutate_population(population,sigma):
@@ -334,8 +324,9 @@ def iterate(x0,y0,repetitions,target):
         #population = mutate_population(population,sigma)
         #population = check_limits(population)
         fitness = calc_fitness(population,proximity)
-        sorted = np.argsort(fitness)
-        population = recombine_population(population,sorted)
+        sorted_ind = np.argsort(fitness)
+        population = population[:,sorted_ind]
+        population = recombine_population(population)
         population = mutate_population(population,sigma)
         population = check_limits(population)
         if i in logpoints:
@@ -372,7 +363,7 @@ for l in range(len(structures)):
         repetitions = np.ones(len(x0),dtype=np.float64)*100
 
 
-        x_c,y_c = get_circle(dose_check_radius,12,True)
+        x_c,y_c = get_circle(dose_check_radius,10,True)
         #x_t = np.zeros(0,dtype=np.float64)
         #y_t = np.zeros(0, dtype=np.float64)
         target = np.zeros((len(x0),len(x_c),2),dtype=np.float64)
@@ -409,18 +400,22 @@ for l in range(len(structures)):
         cmap = sns.cubehelix_palette(light=1, as_cmap=True,reverse=False)
         plot = plt.imshow(exposure,cmap=cmap,extent=[np.min(x),np.max(x),np.min(y),np.max(y)])
         plt.colorbar()
-        plt.contour(x.reshape(orig_shape), y.reshape(orig_shape), exposure, [290,300, 310])
+        plt.contour(x.reshape(orig_shape), y.reshape(orig_shape), exposure.transpose(), [300])#[290,300, 310])
         #plt.scatter(x_t,y_t,c="red")
         #plt.show()
+        plt.xlabel('x/nm')
+        plt.ylabel('y/nm')
         plt.savefig(name)
         plt.close()
 
         name = "pics/"+prefixes[l]+"_"+str(dists[k])+"_expected.png"
         fig = plt.figure()
-        plot = plt.imshow(exposure >= 300,extent=[np.min(x),np.max(x),np.min(y),np.max(y)])
+        plot = plt.imshow((exposure >= 300).transpose(),extent=[np.min(x),np.max(x),np.min(y),np.max(y)])
         #plt.contour(x_t.reshape(target_shape), y_t.reshape(target_shape), target.reshape(target_shape), [299],color="black")
         #plt.scatter(x_t,y_t,c="red")
         plt.scatter(x0,y0,c="blue")
+        plt.xlabel('x/nm')
+        plt.ylabel('y/nm')
         plt.savefig(name)
         plt.close()
 
@@ -428,6 +423,8 @@ for l in range(len(structures)):
         fig = plt.figure()
         print("time for iteration: "+ str(np.round(np.max(t),2))+" seconds")
         plt.semilogy(t,convergence)
+        plt.xlabel('time/s')
+        plt.ylabel('error')
         plt.savefig(name)
         plt.close()
 
