@@ -337,7 +337,7 @@ def iterate(x0,y0,repetitions,target):
         t[i] = time.time() - starttime
         #print(str(i)+ ": " + str(fitness[sorted][0]))
 
-    return population[:,sorted[0]], t, convergence
+    return population[:,0], t, convergence
 
 
 
@@ -400,7 +400,7 @@ for l in range(len(structures)):
         cmap = sns.cubehelix_palette(light=1, as_cmap=True,reverse=False)
         plot = plt.imshow(exposure,cmap=cmap,extent=[np.min(x),np.max(x),np.min(y),np.max(y)])
         plt.colorbar()
-        plt.contour(x.reshape(orig_shape), y.reshape(orig_shape), exposure.transpose(), [300])#[290,300, 310])
+        plt.contour(x.reshape(orig_shape), y.reshape(orig_shape), exposure, [300])#[290,300, 310])
         #plt.scatter(x_t,y_t,c="red")
         #plt.show()
         plt.xlabel('x/nm')
@@ -410,7 +410,7 @@ for l in range(len(structures)):
 
         name = "pics/"+prefixes[l]+"_"+str(dists[k])+"_expected.png"
         fig = plt.figure()
-        plot = plt.imshow((exposure >= 300).transpose(),extent=[np.min(x),np.max(x),np.min(y),np.max(y)])
+        plot = plt.imshow((exposure >= 300),extent=[np.min(x),np.max(x),np.min(y),np.max(y)])
         #plt.contour(x_t.reshape(target_shape), y_t.reshape(target_shape), target.reshape(target_shape), [299],color="black")
         #plt.scatter(x_t,y_t,c="red")
         plt.scatter(x0,y0,c="blue")
