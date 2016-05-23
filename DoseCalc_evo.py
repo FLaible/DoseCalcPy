@@ -24,7 +24,7 @@ radius = 15
 def rot(alpha):
     return np.matrix( [[np.cos(alpha),-np.sin(alpha)],[np.sin(alpha),np.cos(alpha)]] )
 
-def get_circle(r,n=12,inner_circle=False):
+def get_circle(r,n=20,inner_circle=False):
     x = np.zeros(0)
     y = np.zeros(0)
 
@@ -144,7 +144,7 @@ def get_line(dist,r):
 
 current = 100 * 1e-12 # A
 dwell_time = 200 * 1e-9 # s
-dose_check_radius = 7 # nm
+dose_check_radius = 2 # nm
 
 
 #outfilename = 'emre2.txt'
@@ -246,7 +246,6 @@ def calc_fitness(population,proximity):
             exposure = calc_map(proximity[:,j,:],population[:, p] * current * dwell_time)
             exposure = (exposure* 1e6)/(pixel_area*1e-14 ) # uC/cm^2
             fitness[p] += np.abs(300-np.mean(exposure))
-            #fitness[j] = calc_err(exposure, target[])
         fitness[p] = fitness[p]/proximity.shape[1]
     return fitness
 
@@ -287,12 +286,12 @@ def check_limits(population):
     return population
 
 
-population_size = 100 #60
+population_size = 50 #60
 max_iter = 20000
 
 #@jit#(float64(float64[:],float64[:],float64[:],float64[:],float64[:],float64[:]))
 def iterate(x0,y0,repetitions,target):
-    logpoints = np.arange(100,max_iter,100)
+    logpoints = np.arange(200,max_iter,200)
     population = np.zeros((len(x0),population_size),dtype=np.float64)
     fitness = np.zeros(population_size,dtype=np.float64)
 
@@ -313,11 +312,11 @@ def iterate(x0,y0,repetitions,target):
 
     starttime = time.time()
     for i in range(max_iter):
-        if i < (1/4*max_iter):
-            sigma = 2
+        if i < (1/2*max_iter):
+            sigma = 0.1
         else:
-            sigma = 0.01 + (1-(i-1/4*max_iter)/(3/4*max_iter))*1
-
+            sigma = 0.005 + (1-(i-1/2*max_iter)/(1/2*max_iter))*0.05
+        #sigma = 0.1
 
         #sigma = 5 + (1-i/max_iter))*45
 
@@ -364,8 +363,6 @@ for l in range(len(structures)):
 
 
         x_c,y_c = get_circle(dose_check_radius,10,True)
-        #x_t = np.zeros(0,dtype=np.float64)
-        #y_t = np.zeros(0, dtype=np.float64)
         target = np.zeros((len(x0),len(x_c),2),dtype=np.float64)
         for i in range(len(x0)):
             target[i,:,0] = x_c+x0[i]
