@@ -312,10 +312,10 @@ def iterate(x0,y0,repetitions,target):
 
     starttime = time.time()
     for i in range(max_iter):
-        if i < (1/2*max_iter):
+        if i < (1/3*max_iter):
             sigma = 0.1
         else:
-            sigma = 0.005 + (1-(i-1/2*max_iter)/(1/2*max_iter))*0.05
+            sigma = 0.001 + (1-(i-1/3*max_iter)/(2/3*max_iter))*0.01
         #sigma = 0.1
 
         #sigma = 5 + (1-i/max_iter))*45
@@ -324,6 +324,7 @@ def iterate(x0,y0,repetitions,target):
         #population = check_limits(population)
         fitness = calc_fitness(population,proximity)
         sorted_ind = np.argsort(fitness)
+        #sigma = fitness[sorted_ind][0]
         population = population[:,sorted_ind]
         population = recombine_population(population)
         population = mutate_population(population,sigma)
