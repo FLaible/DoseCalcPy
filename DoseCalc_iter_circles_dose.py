@@ -36,7 +36,8 @@ alpha = 32.9 #nm
 beta = 2610 #nm
 gamma = 4.1 #nm
 eta_1 = 1.66
-eta_2s = 0.77
+eta_2 = 1.27
+
 
 radius = 15
 #radius = 30
@@ -185,7 +186,7 @@ outfilename = 'pillars_r'+str(radius)+'nm.txt'
 
 prefixes = ["pillar_dimer"]#,"pillar_trimer","pillar_hexamer"]#,"pillar_asymdimer","pillar_triple"]
 structures = [get_dimer]#,get_trimer,get_hexamer]#,get_asymdimer,get_triple]
-dists = [40]
+dists = [40,50,60]
 
 
 #radius = 100
@@ -212,19 +213,34 @@ dists = [40]
 # structures = [get_trimer,get_hexamer]
 # dists = [70,75,80,85,90,95,100]
 
+# normalization = 2.41701729505915
+# #http://iopscience.iop.org/article/10.1143/JJAP.35.1929/pdf
+# @jit(float64(float64,float64,float64,float64),nopython=True)
+# def calc_prox(x, y, xi, yi):
+#     r = math.sqrt( math.pow(x-xi,2) + math.pow(y-yi,2) )
+#     return  (1/normalization) * (1/(math.pi*(1+eta_1*(1+eta_2s)))) * ( (1/(alpha**2))*math.exp(-(r**2)/(alpha**2)) + eta_1*( (1/(beta**2))*math.exp(-(r**2)/(beta**2))+(eta_2s/(24*(gamma**2)))*math.exp(-np.sqrt((r**2)/(alpha**2)))  )   )
+# # [return] = C/nm !!!
+#
+# @jit(float64(float64),nopython=True)
+# def calc_prox_r(r):
+#     return  (1/normalization) * (1/(math.pi*(1+eta_1*(1+eta_2s)))) * ( (1/(alpha**2))*math.exp(-(r**2)/(alpha**2)) + eta_1*( (1/(beta**2))*math.exp(-(r**2)/(beta**2))+(eta_2s/(24*(gamma**2)))*math.exp(-np.sqrt((r**2)/(alpha**2)))  )   )
+# # [return] = C/nm !!!
+
+
 normalization = 2.41701729505915
 #http://iopscience.iop.org/article/10.1143/JJAP.35.1929/pdf
-@jit(float64(float64,float64,float64,float64),nopython=True)
-def calc_prox(x, y, xi, yi):
-    r = math.sqrt( math.pow(x-xi,2) + math.pow(y-yi,2) )
-    return  (1/normalization) * (1/(math.pi*(1+eta_1*(1+eta_2s)))) * ( (1/(alpha**2))*math.exp(-(r**2)/(alpha**2)) + eta_1*( (1/(beta**2))*math.exp(-(r**2)/(beta**2))+(eta_2s/(24*(gamma**2)))*math.exp(-np.sqrt((r**2)/(alpha**2)))  )   )
-# [return] = C/nm !!!
-
 @jit(float64(float64),nopython=True)
 def calc_prox_r(r):
-    return  (1/normalization) * (1/(math.pi*(1+eta_1*(1+eta_2s)))) * ( (1/(alpha**2))*math.exp(-(r**2)/(alpha**2)) + eta_1*( (1/(beta**2))*math.exp(-(r**2)/(beta**2))+(eta_2s/(24*(gamma**2)))*math.exp(-np.sqrt((r**2)/(alpha**2)))  )   )
+    return (1/normalization) * (1/(math.pi*(1+eta_1+eta_2))) * ( (1/(alpha**2))*math.exp(-r**2/alpha**2) + (eta_1/beta**2)*math.exp(-r**2/beta**2) + (eta_2/(24*gamma**2))*math.exp(-math.sqrt(r/gamma)) )
 # [return] = C/nm !!!
 
+@jit(float64(float64,float64,float64,float64),nopython=True)
+def dist(x0,y0,x,y):
+    return math.sqrt( (x0-x)*(x0-x)+(y0-y)*(y0-y) )
+
+@jit(float64(float64,float64,float64,float64),nopython=True)
+def calc_prox(x0,y0,x,y):
+    return calc_prox_r(dist(x0,y0,x,y))
 
 #@jit(float64(float64,float64,float64,float64),nopython=True)
 #def calc_prox(x,y,xi,yi):
@@ -255,7 +271,7 @@ def calc_prox_r(r):
 
 #normalization, error = integrate.quad(lambda x: calc_prox_r(x)*2*np.pi*x, 0, np.inf)
 #print(normalization)
-print(integrate.quad(lambda x: calc_prox_r(x)*2*np.pi*x, 0, np.inf))
+#print(integrate.quad(lambda x: calc_prox_r(x)*2*np.pi*x, 0, np.inf))
 
 
 @jit(float64[:,:](float64[:],float64[:]),nopython=True)
@@ -401,8 +417,11 @@ def iteration(x0, y0):
 
 Outputfile = open(outfilename,'w')
 
+#starttime = time.time()
+n = len(structures)*len(dists)
 for l in range(len(structures)):
     for k in range(len(dists)):
+        itertime = time.time()
 
         Outputfile.write('D ' + prefixes[l] +'-'+str(dists[k])+", 11500, 11500, 5, 5" + '\n')
         Outputfile.write('I 1' + '\n')
@@ -464,5 +483,8 @@ for l in range(len(structures)):
         Outputfile.write('END' + '\n')
         Outputfile.write('\n')
         Outputfile.write('\n')
+
+        eta = (time.time() - itertime)*(n-l-k)
+        print("eta: "+str(round(eta))+" seconds")
 
 Outputfile.close()

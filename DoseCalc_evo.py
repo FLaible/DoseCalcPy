@@ -288,7 +288,7 @@ def check_limits(population):
 
 
 population_size = 100 #60
-max_iter = 10000
+max_iter = 20000
 
 #@jit#(float64(float64[:],float64[:],float64[:],float64[:],float64[:],float64[:]))
 def iterate(x0,y0,repetitions,target):
@@ -307,7 +307,7 @@ def iterate(x0,y0,repetitions,target):
                 proximity[i,j,k] = calc_prox(dist(x0[i],y0[i],target[j,k,0],target[j,k,1]))
 
     for i in range(population_size):
-        population[:, i] = repetitions#+np.random.randint(-50,50)
+        population[:, i] = repetitions+np.random.randint(-50,50)
 
     print("population initialized")
 
