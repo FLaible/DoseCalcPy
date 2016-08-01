@@ -8,23 +8,33 @@ import math
 
 import time
 
+from scipy.stats import linregress
+from scipy import integrate
+
 sns.set_style("ticks")
 sns.set_context("talk")
 
-alpha = 32.9 #nm
-beta = 2610 #nm
-gamma = 4.1 #nm
-eta_1 = 1.66
-eta_2 = 1.27
+# alpha = 32.9 #nm
+# beta = 2610 #nm
+# gamma = 4.1 #nm
+# eta_1 = 1.66
+# eta_2 = 1.27
+
+alpha = 31.2 #nm
+beta = 2500 #nm
+gamma = 133 #nm
+eta_1 = 1.06
+eta_2 = 0.47
 
 
-radius = 15
-#radius = 30
+#radius = 15
+#radius = [35,40,45,50,55,60]
+radius = [25]
 
 def rot(alpha):
     return np.matrix( [[np.cos(alpha),-np.sin(alpha)],[np.sin(alpha),np.cos(alpha)]] )
 
-def get_circle(r,n=20,inner_circle=False):
+def get_circle(r,n=16,inner_circle=False,centre_dot=False):
     x = np.zeros(0)
     y = np.zeros(0)
 
@@ -44,9 +54,9 @@ def get_circle(r,n=20,inner_circle=False):
             x = np.hstack( (x,x2) )
             y = np.hstack( (y,y2) )
 
-    # #if r > 20:
-    #x = np.hstack( (x,0) )
-    #y = np.hstack( (y,0) )
+    if centre_dot:
+        x = np.hstack( (x,0) )
+        y = np.hstack( (y,0) )
 
     #xv, yv = np.meshgrid(x, y)
     #xv = np.ravel(xv)
@@ -112,10 +122,15 @@ def get_asymdimer(dist,r):
     return x,y
 
 def get_single(dist,r):
-    x1,y1 = get_circle(r)
+    x1, y1 = get_circle(r, n=48, inner_circle=False, centre_dot=True)
 
-    x = x1+500
-    y = y1+500
+    #if r >= 50:
+    #    x1,y1 = get_circle(r,n=48,inner_circle=True,centre_dot=True)
+    #else:
+    #    x1, y1 = get_circle(r, n=32, inner_circle=False, centre_dot=True)
+
+    x = x1+3750
+    y = y1+3750
 
     return x,y
 
@@ -144,19 +159,19 @@ def get_line(dist,r):
 
 current = 100 * 1e-12 # A
 dwell_time = 200 * 1e-9 # s
-dose_check_radius = 2 # nm
-
+dose_check_radius = 3 # nm
+target_dose = 66 # uC/cm^2
 
 #outfilename = 'emre2.txt'
 #outfilename = 'asymdimer.txt'
 #outfilename = 'single.txt'
-outfilename = 'pillars2_r'+str(radius)+'nm.txt'
+outfilename = 'pillars_r'+str(radius[0])+'nm_dose'+str(target_dose)+'.txt'
 #outfilename = 'test.txt'
-#outfilename = 'lines.txt'
+#outfilename = 'anni_kreise.txt'
 
 
-prefixes = ["pillar_dimer","pillar_trimer","pillar_hexamer"]#,"pillar_asymdimer","pillar_triple"]
-structures = [get_dimer,get_trimer,get_hexamer]#,get_asymdimer,get_triple]
+prefixes = ["pillar_dimer","pillar_trimer","pillar_hexamer","pillar_asymdimer","pillar_triple"]
+structures = [get_dimer,get_trimer,get_hexamer,get_asymdimer,get_triple]
 dists = [40]
 for i in range(50):
     dists.append(dists[i]+1)
@@ -166,15 +181,23 @@ for i in range(50):
 # prefixes = ["pillar_dimer"]#,"pillar_trimer","pillar_hexamer"]#,"pillar_asymdimer","pillar_triple"]
 # structures = [get_dimer]#,get_trimer,get_hexamer]#,get_asymdimer,get_triple]
 # dists = [40]
+# radius = 100
+#prefixes = ["kreis"]
+#structures = [get_single]#,get_trimer,get_hexamer,get_asymdimer,get_triple]
+#dists = [1]
 
 
-
-normalization = 2.41701729505915
+normalization = 1
 #http://iopscience.iop.org/article/10.1143/JJAP.35.1929/pdf
 @jit(float64(float64),nopython=True)
 def calc_prox(r):
     return (1/normalization) * (1/(math.pi*(1+eta_1+eta_2))) * ( (1/(alpha**2))*math.exp(-r**2/alpha**2) + (eta_1/beta**2)*math.exp(-r**2/beta**2) + (eta_2/(24*gamma**2))*math.exp(-math.sqrt(r/gamma)) )
 # [return] = C/nm !!!
+normalization = integrate.quad(lambda x: 2*np.pi*x*calc_prox(x), 0, np.inf)
+print('norm:'+str(normalization))
+#normalization = 2.41701729505915
+
+
 
 @jit(float64(float64,float64,float64,float64),nopython=True)
 def dist(x0,y0,x,y):
@@ -211,28 +234,17 @@ def recombine_arrays(arr1, arr2):
         res[k, 1] = alpha * arr2[k] + (1 - alpha) * arr1[k]
     return res
 
-@jit(float64[:](float64[:],float64),nopython=True)
-def mutate(arr,sigma):
+@jit(float64[:](float64[:],float64, float64),nopython=True)
+def mutate(arr,sigma,mutation_rate):
     for i in range(arr.shape[0]):
-        mutation = np.random.normal()*sigma
-        if mutation > sigma*1.5:
-            mutation = sigma
-        if mutation < -sigma*1.5:
-            mutation = -sigma
-        arr[i] = arr[i] + mutation
+        if np.random.random() < mutation_rate:
+            mutation = np.random.normal()*sigma
+            if mutation > sigma*1.0:
+                mutation = sigma
+            if mutation < -sigma*1.0:
+                mutation = -sigma
+            arr[i] = arr[i] + mutation
     return arr
-
-@jit(float64(float64[:],float64[:]),nopython=True)
-def calc_err(exposure,target):
-    err = 0.0
-    for i in range(len(exposure)):
-        if (target[i] >= 300) and (exposure[i] < 300):
-        #if (target[i] >=1) and (exposure[i] < 0.5):
-            err += abs(target[i] - exposure[i])
-        if (target[i] < 300) and (exposure[i] >= 295):
-        #if (target[i] < 1) and (exposure[i] > 0.3):
-            err += abs(target[i] - exposure[i])
-    return err
 
 
 @jit(float64[:](float64[:,:],float64[:,:,:]),nopython=True)
@@ -240,12 +252,16 @@ def calc_fitness(population,proximity):
     fitness = np.zeros(population.shape[1],dtype=np.float64)
     exposure = np.zeros(population.shape[1],dtype=np.float64)
     pixel_area =  1 #nm^2 #pixel_area * 1e-14  # cm^2
+    #repetitions = np.zeros(population.shape[0],dtype=np.float64)
 
     for p in range(population.shape[1]):
+        #for i in range(population.shape[0]):
+        #    repetitions[i] = round(population[i,p])
         for j in range(proximity.shape[1]):
             exposure = calc_map(proximity[:,j,:],population[:, p] * current * dwell_time)
+            #exposure = calc_map(proximity[:, j, :], repetitions * current * dwell_time)
             exposure = (exposure* 1e6)/(pixel_area*1e-14 ) # uC/cm^2
-            fitness[p] += np.abs(300-np.mean(exposure))
+            fitness[p] += np.abs(target_dose-np.mean(exposure))
         fitness[p] = fitness[p]/proximity.shape[1]
     return fitness
 
@@ -264,36 +280,105 @@ def recombine_population(population):
 
     return population
 
-@jit(float64[:,:](float64[:,:],float64),nopython=True)
-def mutate_population(population,sigma):
+@jit(float64[:,:](float64[:,:],float64, float64),nopython=True)
+def mutate_population(population,sigma,mutation_rate):
 
     for i in range(population.shape[1]):
         #if i < int(population.shape[1]/3):
         if i < 2:
-            population[:, i] = mutate(population[:, i], sigma/20)#
+            population[:, i] = mutate(population[:, i], sigma/10, mutation_rate)#
         elif i < 6:
-            population[:, i] = mutate(population[:, i], sigma/5)#
+            population[:, i] = mutate(population[:, i], sigma/2, mutation_rate)#
         else:
-            population[:, i] = mutate(population[:, i], sigma)  #
+            population[:, i] = mutate(population[:, i], sigma, mutation_rate)  #
     return population
 
 @jit(float64[:,:](float64[:,:]),nopython=True)
 def check_limits(population):
     for i in range(population.shape[1]):
         for j in range(population.shape[0]):
-            if population[j, i] < 1:
+            if population[j, i] < 0.5:
                 population[j, i] = 0
     return population
 
 
-population_size = 50 #60
-max_iter = 20000
 
-#@jit#(float64(float64[:],float64[:],float64[:],float64[:],float64[:],float64[:]))
+@jit()
+def partition(values, idxs, left, right):
+    """
+    Partition method
+    """
+
+    piv = values[idxs[left]]
+    i = left + 1
+    j = right
+
+    while True:
+        while i <= j and values[idxs[i]] <= piv:
+            i += 1
+        while j >= i and values[idxs[j]] >= piv:
+            j -= 1
+        if j <= i:
+            break
+
+        idxs[i], idxs[j] = idxs[j], idxs[i]
+
+    idxs[left], idxs[j] = idxs[j], idxs[left]
+
+    return j
+
+
+@jit()
+def argsort1D(values):
+
+    idxs = np.arange(values.shape[0])
+
+    left = 0
+    right = values.shape[0] - 1
+
+    max_depth = np.int(right / 2)
+
+    ndx = 0
+
+    tmp = np.zeros((max_depth, 2), dtype=np.int64)
+
+    tmp[ndx, 0] = left
+    tmp[ndx, 1] = right
+
+    ndx = 1
+    while ndx > 0:
+
+        ndx -= 1
+        right = tmp[ndx, 1]
+        left = tmp[ndx, 0]
+
+        piv = partition(values, idxs, left, right)
+
+        if piv - 1 > left:
+            tmp[ndx, 0] = left
+            tmp[ndx, 1] = piv - 1
+            ndx += 1
+
+        if piv + 1 < right:
+            tmp[ndx, 0] = piv + 1
+            tmp[ndx, 1] = right
+            ndx += 1
+
+    return idxs
+
+population_size = 60
+max_iter = 100000
+#max_iter = 25000
+
+@jit()#(float64(float64[:],float64[:],float64[:],float64[:],float64[:],float64[:]))
 def iterate(x0,y0,repetitions,target):
-    logpoints = np.arange(200,max_iter,200)
+    mutation_rate = 0.1
+    logpoints = np.arange(500,max_iter,500)
+    checkpoints = np.arange(50,max_iter,50)
+
     population = np.zeros((len(x0),population_size),dtype=np.float64)
     fitness = np.zeros(population_size,dtype=np.float64)
+    pixel_area =  1 #nm^2 #pixel_area * 1e-14  # cm^2
 
 
     proximity = np.zeros((target.shape[0],target.shape[0],target.shape[1]),dtype=np.float64)
@@ -305,39 +390,85 @@ def iterate(x0,y0,repetitions,target):
             for k in range(target.shape[1]):
                 proximity[i,j,k] = calc_prox(dist(x0[i],y0[i],target[j,k,0],target[j,k,1]))
 
+    start = np.linspace(0,100,num=population_size)
     for i in range(population_size):
-        population[:, i] = repetitions+np.random.randint(-50,50)
+        #population[:, i] = repetitions + np.random.randint(-50, 50)
+        population[:, i] = np.repeat(start[i],len(repetitions))
+        for j in range(len(repetitions)):
+            population[j, i] = population[j, i]+np.random.randint(-10,10)
 
-    print("population initialized")
 
+    #print("Starting Iteration")
+    sigma = 1
     starttime = time.time()
     for i in range(max_iter):
-        if i < (1/3*max_iter):
-            sigma = 0.1
+        fitness = calc_fitness(population, proximity)
+        sorted_ind = np.argsort(fitness)
+        #sorted_ind = argsort1D(fitness)
+
+        if fitness[sorted_ind][0] < 0.01:
+            break
+
+        if i < 500:
+            sigma = 1
+        elif i < 1000:
+            sigma = 0.5
         else:
-            sigma = 0.001 + (1-(i-1/3*max_iter)/(2/3*max_iter))*0.01
+            if i in checkpoints:
+                indices = np.arange(i-500,i,step=1)
+                slope, intercept, r_value, p_value, std_err = linregress(t[indices],convergence[indices])
+                #print(std_err)
+                #if slope > 0.01:
+                #    sigma -= 0.01
+                #if (std_err > 0.0003) or (slope > 0):
+                #if (std_err > 0.005) or (slope > 0):
+                if (std_err > 0.01) or (slope > 0):
+                    sigma *= 0.99
+                if (std_err < 0.001) and (slope > 0):
+                    sigma *= 1.02
+
+                if sigma < 0.001:
+                    sigma = 0.001
+
+        #sigma = fitness[sorted_ind][0]*8000
+        #sigma = np.median(fitness)*1
+        #sigma = (sigma / 1e6) * (pixel_area * 1e-14) / (dwell_time * current)
+        #sigma = sigma*150
+        # if i < (1/3*max_iter):
+        #     sigma *= 1
+        # elif i < (2/3*max_iter):
+        #     sigma *= 1
+        # else:
+        #     sigma *= 1
+
+        # if i < (1/3*max_iter):
+        #     sigma = 0.1
+        # else:
+        #     sigma = 0.001 + (1-(i-1/3*max_iter)/(2/3*max_iter))*0.01
         #sigma = 0.1
+
+        # if i < (2000):
+        #     sigma = 0.1
+        # elif i < 12000:
+        #     sigma = 0.01 + (1-(i-10000)/(10000))*0.01
+        # elif i < 17000:
+        #     sigma = 0.001
+        # elif i > 22000:
+        #     sigma = fitness[sorted_ind][0]/3
 
         #sigma = 5 + (1-i/max_iter))*45
 
-        #population = mutate_population(population,sigma)
-        #population = check_limits(population)
-        fitness = calc_fitness(population,proximity)
-        sorted_ind = np.argsort(fitness)
-        #sigma = fitness[sorted_ind][0]
         population = population[:,sorted_ind]
         population = recombine_population(population)
-        population = mutate_population(population,sigma)
+        population = mutate_population(population,sigma,mutation_rate)
         population = check_limits(population)
         if i in logpoints:
-            print(str(i)+ ": " + str(fitness[sorted_ind][0]))
-            #print(sigma)
-
+            print("{0:7d}: fitness: {1:1.5f}, sigma: {2:1.5f}".format(i, fitness[sorted_ind][0], sigma))
         convergence[i] = fitness[sorted_ind][0]
         t[i] = time.time() - starttime
-        #print(str(i)+ ": " + str(fitness[sorted][0]))
 
-    return population[:,0], t, convergence
+
+    return population[:,0], t[:i], convergence[:i]
 
 
 
@@ -345,107 +476,133 @@ def iterate(x0,y0,repetitions,target):
 
 Outputfile = open(outfilename,'w')
 
-for l in range(len(structures)):
-    for k in range(len(dists)):
-        print((l,k))
+for r in radius:
+    for l in range(len(structures)):
+        for k in range(len(dists)):
+            print("structure #: {0:d}/{1:d}, dist #: {2:d}/{3:d}".format(l+1, len(structures), k+1, len(dists)))
 
-        Outputfile.write('D ' + prefixes[l] +'-'+str(dists[k])+", 11500, 11500, 5, 5" + '\n')
-        Outputfile.write('I 1' + '\n')
-        Outputfile.write('C '+str(int(dwell_time*1e9)) + '\n')
-        Outputfile.write("FSIZE 20 micrometer" + '\n')
-        Outputfile.write("UNIT 1 micrometer" + '\n')
+            Outputfile.write('D ' + prefixes[l] +'-'+str(dists[k])+", 11500, 11500, 5, 5" + '\n')
+            Outputfile.write('I 1' + '\n')
+            Outputfile.write('C '+str(int(dwell_time*1e9)) + '\n')
+            Outputfile.write("FSIZE 20 micrometer" + '\n')
+            Outputfile.write("UNIT 1 micrometer" + '\n')
 
-        x0,y0 = structures[l](dists[k],radius)
-        #randind = np.random.permutation(len(x0))
-        #x0 = x0[randind]
-        #y0 = y0[randind]
+            #Outputfile.write('D ' + prefixes[l] +'-'+str(dists[k])+", 11000, 11000, 5, 5" + '\n')
+            #Outputfile.write('D ' + prefixes[l] + '-' + str(r) + ", 11000, 11000, 5, 5" + '\n')
+            #Outputfile.write('I 1' + '\n')
+            #Outputfile.write('C '+str(int(dwell_time*1e9)) + '\n')
+            #Outputfile.write("FSIZE 15 micrometer" + '\n')
+            #Outputfile.write("UNIT 1 micrometer" + '\n')
 
-        repetitions = np.ones(len(x0),dtype=np.float64)*100
+            x0,y0 = structures[l](dists[k],r)
+            #randind = np.random.permutation(len(x0))
+            #x0 = x0[randind]
+            #y0 = y0[randind]
+
+            repetitions = np.ones(len(x0),dtype=np.float64)*100
+
+            #for circular objects
+            x_c,y_c = get_circle(dose_check_radius,5,False)
+            target = np.zeros((len(x0),len(x_c),2),dtype=np.float64)
+            for i in range(len(x0)):
+               target[i,:,0] = x_c+x0[i]
+               target[i, :, 1] = y_c + y0[i]
+
+            # x_c, y_c = get_circle(r*1.1, n=16,inner_circle=False,centre_dot=False)
+            # target = np.zeros((len(x0),len(x_c),2),dtype=np.float64)
+            # for i in range(len(x0)):
+            #    target[i,:,0] = x_c
+            #    target[i, :, 1] = y_c
 
 
-        x_c,y_c = get_circle(dose_check_radius,10,True)
-        target = np.zeros((len(x0),len(x_c),2),dtype=np.float64)
-        for i in range(len(x0)):
-            target[i,:,0] = x_c+x0[i]
-            target[i, :, 1] = y_c + y0[i]
-
-        # fig = plt.figure()
-        # plt.imshow(target.reshape(target_shape),extent=[np.min(x_t),np.max(x_t),np.min(y_t),np.max(y_t)])
-        # plt.scatter(x0, y0, c="blue")
-        # plt.show()
-        # plt.close()
+            # # for lines
+            # #x_c,y_c = get_line(0.5,1.5)
+            # x_c = np.array([0])
+            # y_c = np.array([0])
+            # target = np.zeros((len(x0),len(x_c)*2,2),dtype=np.float64)
+            # for i in range(len(x0)):
+            #     target[i,:,0] = np.append(x_c,x_c)+x0[i]
+            #     target[i, :, 1] = np.append(y_c-10,y_c+10) + y0[i]
 
 
-        repetitions, t, convergence = iterate(x0, y0, repetitions,target)
+            # fig = plt.figure()
+            # plt.scatter(x0, y0, c="blue")
+            # plt.scatter(target[:,:,0].ravel(), target[:,:,1].ravel(), c="red")
+            # plt.show()
+            # plt.close()
 
-        x = np.linspace(np.min(x0)-50,np.max(x0)+50,500)
-        y = x
-        x, y = np.meshgrid(x, y)
-        orig_shape = x.shape
-        x = x.ravel()
-        y = y.ravel()
-        pixel_area = np.abs(x[0] - x[1]) * np.abs(x[0] - x[1])  # nm^2
-        pixel_area = pixel_area * 1e-14  # cm^2
-        exposure = calc_map_2(x0, y0, repetitions * dwell_time * current, x, y) # C
-        exposure = exposure.reshape(orig_shape)
-        exposure = exposure * 1e6 # uC
 
-        exposure = exposure/pixel_area # uC/cm^2
-        print(np.max(exposure))
+            repetitions, t, convergence = iterate(x0, y0, repetitions,target)
 
-        name = "pics/"+prefixes[l]+"_"+str(dists[k])+".png"
-        fig = plt.figure()
-        cmap = sns.cubehelix_palette(light=1, as_cmap=True,reverse=False)
-        plot = plt.imshow(exposure,cmap=cmap,extent=[np.min(x),np.max(x),np.min(y),np.max(y)])
-        plt.colorbar()
-        plt.contour(x.reshape(orig_shape), y.reshape(orig_shape), exposure, [300])#[290,300, 310])
-        #plt.scatter(x_t,y_t,c="red")
-        #plt.show()
-        plt.xlabel('x/nm')
-        plt.ylabel('y/nm')
-        plt.savefig(name)
-        plt.close()
+            repetitions = np.array(np.round(repetitions),dtype=np.int)
 
-        name = "pics/"+prefixes[l]+"_"+str(dists[k])+"_expected.png"
-        fig = plt.figure()
-        plot = plt.imshow((exposure >= 300),extent=[np.min(x),np.max(x),np.min(y),np.max(y)])
-        #plt.contour(x_t.reshape(target_shape), y_t.reshape(target_shape), target.reshape(target_shape), [299],color="black")
-        #plt.scatter(x_t,y_t,c="red")
-        plt.scatter(x0,y0,c="blue")
-        plt.xlabel('x/nm')
-        plt.ylabel('y/nm')
-        plt.savefig(name)
-        plt.close()
+            x = np.arange(np.min(x0)-50,np.max(x0)+50,step=0.2)
+            y = np.arange(np.min(y0)-50,np.max(y0)+50,step=0.2)
+            x, y = np.meshgrid(x, y)
+            orig_shape = x.shape
+            x = x.ravel()
+            y = y.ravel()
+            pixel_area = np.abs(x[0] - x[1]) * np.abs(x[0] - x[1])  # nm^2
+            pixel_area = pixel_area * 1e-14  # cm^2
+            exposure = calc_map_2(x0, y0, repetitions * dwell_time * current, x, y) # C
+            exposure = exposure.reshape(orig_shape)
+            exposure = exposure * 1e6 # uC
 
-        name = "pics/"+prefixes[l]+"_"+str(dists[k])+"_convergence.png"
-        fig = plt.figure()
-        print("time for iteration: "+ str(np.round(np.max(t),2))+" seconds")
-        plt.semilogy(t,convergence)
-        plt.xlabel('time/s')
-        plt.ylabel('error')
-        plt.savefig(name)
-        plt.close()
+            exposure = exposure/pixel_area # uC/cm^2
 
-        #plt.scatter(x_t,y_t,c="red")
-        #plt.scatter(x0,y0,c="blue")
-        #plt.show()
+            name = "pics/"+prefixes[l]+"_"+str(dists[k])+"_"+str(r)+".png"
+            fig = plt.figure()
+            cmap = sns.cubehelix_palette(light=1, as_cmap=True,reverse=False)
+            plot = plt.imshow(np.flipud(exposure),cmap=cmap,extent=[np.min(x),np.max(x),np.min(y),np.max(y)])
+            plt.colorbar()
+            plt.contour(x.reshape(orig_shape), y.reshape(orig_shape), exposure, [target_dose])#[290,300, 310])
+            #plt.scatter(x_t,y_t,c="red")
+            #plt.show()
+            plt.xlabel('x/nm')
+            plt.ylabel('y/nm')
+            plt.savefig(name)
+            plt.close()
 
-        area = np.pi * (15*repetitions/np.max(repetitions))**2
-        plt.scatter(x0, y0, s=area, alpha=0.5,edgecolors="black",linewidths=1)
-        plt.axes().set_aspect('equal', 'datalim')
-        name = "pics/"+prefixes[l]+"_"+str(dists[k])+"_scatter.png"
-        plt.savefig(name)
-        plt.close()
-        x0 = x0/1000
-        y0 = y0/1000
-        repetitions = np.array(np.round(repetitions),dtype=np.int)
-        print(repetitions)
-        for j in range(len(x0)):
-            if repetitions[j] > 1:
-                Outputfile.write('RDOT '+str(x0[j]) + ', ' + str(y0[j]) + ', ' + str((repetitions[j])) + '\n')
-        Outputfile.write('END' + '\n')
-        Outputfile.write('\n')
-        Outputfile.write('\n')
+            name = "pics/"+prefixes[l]+"_"+str(dists[k])+"_"+str(r)+"_expected.png"
+            fig = plt.figure()
+            plot = plt.imshow(np.flipud(exposure >= target_dose),extent=[np.min(x),np.max(x),np.min(y),np.max(y)])
+            #plt.contour(x_t.reshape(target_shape), y_t.reshape(target_shape), target.reshape(target_shape), [299],color="black")
+            #plt.scatter(x_t,y_t,c="red")
+            plt.scatter(x0,y0,c="blue")
+            plt.scatter(target[:,:,0].ravel(), target[:,:,1].ravel(), c="red")
+            plt.xlabel('x/nm')
+            plt.ylabel('y/nm')
+            plt.savefig(name)
+            plt.close()
+
+            name = "pics/"+prefixes[l]+"_"+str(dists[k])+"_"+str(r)+"_convergence.png"
+            fig = plt.figure()
+            print("time for iteration: "+ str(np.round(np.max(t),2))+" seconds")
+            plt.semilogy(t,convergence)
+            plt.xlabel('time/s')
+            plt.ylabel('error')
+            plt.savefig(name)
+            plt.close()
+
+            #plt.scatter(x_t,y_t,c="red")
+            #plt.scatter(x0,y0,c="blue")
+            #plt.show()
+
+            area = np.pi * (15*repetitions/np.max(repetitions))**2
+            plt.scatter(x0, y0, s=area, alpha=0.5,edgecolors="black",linewidths=1)
+            plt.axes().set_aspect('equal', 'datalim')
+            name = "pics/"+prefixes[l]+"_"+str(dists[k])+"_"+str(r)+"_scatter.png"
+            plt.savefig(name)
+            plt.close()
+            x0 = x0/1000
+            y0 = y0/1000
+            print(repetitions)
+            for j in range(len(x0)):
+                if repetitions[j] > 1:
+                    Outputfile.write('RDOT '+str(x0[j]) + ', ' + str(y0[j]) + ', ' + str((repetitions[j])) + '\n')
+            Outputfile.write('END' + '\n')
+            Outputfile.write('\n')
+            Outputfile.write('\n')
 
 Outputfile.close()
 
@@ -588,5 +745,3 @@ Outputfile.close()
 # #plt.show()
 #
 #
-
-
